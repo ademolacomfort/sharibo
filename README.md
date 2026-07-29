@@ -92,6 +92,55 @@ An on-chain observer sees five deposits and one payout — and no way to connect
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    %% Browser / Client Layer
+    subgraph Browser ["Browser Application (packages/client)"]
+        direction TB
+        Identities["Member Identities<br/>(Nullifier & Secret)"]
+        MerkleTree["Merkle Tree Generation<br/>(tree.ts)"]
+
+        subgraph Proving ["Proof Generation (prove.ts)"]
+            direction LR
+            Circuit["circuits/membership.circom"]
+            SnarkJS["snarkjs"]
+            Wasm["WASM Witness Generator"]
+            Zkey["Proving Key (.zkey)"]
+
+            Circuit --> SnarkJS
+            Wasm --> SnarkJS
+            Zkey --> SnarkJS
+        end
+
+        Identities --> MerkleTree
+        MerkleTree -.-> |Inclusion Proof Inputs| Proving
+    end
+
+    %% Network / On-chain Layer
+    subgraph Network ["Soroban Testnet"]
+        direction TB
+        Contract["Soroban Contract<br/>(contracts/sharibo)"]
+        Pairing["BLS12-381 Pairing Verification<br/>(env.crypto)"]
+
+        Contract --> Pairing
+    end
+
+    %% Recipient Layer
+    subgraph Recipient ["Recipient Address"]
+        Wallet["Fresh Recipient Wallet"]
+    end
+
+    %% Data Flow Transitions
+    Proving --> |"claim(circle_id, recipient, ...)"| Contract
+    Pairing --> |"Success (Verification Passes)"| Wallet
+    Wallet --> |Payout Transferred| Payout(("Payout"))
+
+    style Browser fill:#f5faff,stroke:#1d3557,stroke-width:2px
+    style Network fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Recipient fill:#f1f8e9,stroke:#33691e,stroke-width:2px
+    style Payout fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+```
+
 ```
 create_circle(admin, token, root, contribution, size, vk) -> circle_id
         │  root = Merkle root of Poseidon(identityNullifier, identitySecret)
